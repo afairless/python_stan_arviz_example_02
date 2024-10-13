@@ -109,6 +109,429 @@ def create_grid_regular_intervals_two_variables(a_df, intervals_num):
     return product_df
 
 
+def run_arviz_plots(
+    az_data: az.InferenceData, draws_df: pd.DataFrame, 
+    parameter_names: list[str], show: bool, output_path: Path) -> None:
+    """
+    Save a series of plots of the Bayesian model using the ArviZ library
+    """
+
+
+    # plot chain autocorrelation
+    ##################################################
+
+    az.plot_autocorr(az_data, var_names=parameter_names, show=show)
+    output_filepath = output_path / 'plot_autocorr.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_autocorr(
+        az_data, var_names=parameter_names, combined=True, show=show)
+    output_filepath = output_path / 'plot_autocorr_combined_chains.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot energy
+    ##################################################
+
+    az.plot_energy(az_data, show=show)
+    output_filepath = output_path / 'plot_energy.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot parameter density
+    ##################################################
+
+    az.plot_density(
+        az_data, var_names=parameter_names, outline=False, shade=0.7,
+        hdi_prob=0.9, point_estimate='mean', show=show)
+    output_filepath = output_path / 'plot_density.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot distribution
+    ##################################################
+
+    az.plot_dist(
+        draws_df[parameter_names[1]+'[1]'], rug=True,
+        quantiles=[0.25, 0.5, 0.75], show=show)
+    output_filepath = output_path / 'plot_distribution.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_dist(
+        draws_df[parameter_names[1]+'[1]'], rug=True, cumulative=True,
+        quantiles=[0.25, 0.5, 0.75], show=show)
+    output_filepath = output_path / 'plot_distribution_cumulative.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot ESS across local parts of distribution
+    ##################################################
+
+    az.plot_ess(
+        az_data, var_names=parameter_names, kind='local', n_points=10,
+        rug=True, extra_methods=True, show=show)
+    output_filepath = output_path / 'plot_ess_local.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_ess(
+        az_data, var_names=parameter_names, kind='quantile', n_points=10,
+        rug=True, extra_methods=True, show=show)
+    output_filepath = output_path / 'plot_ess_quantile.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_ess(
+        az_data, var_names=parameter_names, kind='evolution', n_points=10,
+        rug=True, extra_methods=True, show=show)
+    output_filepath = output_path / 'plot_ess_evolution.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # forest plots
+    ##################################################
+
+    # look at model estimations of parameters, r-hat, and ess
+    az.plot_forest(
+        az_data, kind='forestplot', var_names=parameter_names,
+        linewidth=6, markersize=8,
+        hdi_prob=0.9, r_hat=True, ess=True, show=show)
+    output_filepath = output_path / 'plot_forest.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    # look at model estimations of parameters, r-hat, and ess
+    az.plot_forest(
+        az_data, kind='ridgeplot', var_names=parameter_names,
+        hdi_prob=0.9, r_hat=True, ess=True,
+        ridgeplot_alpha=0.5, ridgeplot_overlap=2, ridgeplot_kind='auto',
+        show=show)
+    output_filepath = output_path / 'plot_forest_ridge.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # HPD plot
+    ##################################################
+
+    # look at model estimations of parameters, r-hat, and ess
+    predicted_y_colnames = [e for e in draws_df.columns if 'y_given_x' in e]
+    predicted_y_df = draws_df[predicted_y_colnames]
+
+    # x_col_idx = 0
+    # plt.scatter(x.iloc[:, x_col_idx], y)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
+    # output_filepath = output_path / 'plot_hpd_x0.png'
+    # plt.savefig(output_filepath)
+
+    # plt.close()
+    # x_col_idx = 1
+    # plt.scatter(x.iloc[:, x_col_idx], y)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
+    # output_filepath = output_path / 'plot_hpd_x1.png'
+    # plt.savefig(output_filepath)
+    # plt.close()
+
+
+    # plot KDE
+    ##################################################
+
+    az.plot_kde(
+        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
+        contour=True, show=show)
+    output_filepath = output_path / 'plot_kde_contour.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_kde(
+        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
+        contour=False, show=show)
+    output_filepath = output_path / 'plot_kde_no_contour.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # MCSE statistics and plots
+    ##################################################
+
+    az.mcse(az_data, var_names=parameter_names, method='mean')
+    az.mcse(az_data, var_names=parameter_names, method='sd')
+    az.mcse(az_data, var_names=parameter_names, method='quantile', prob=0.1)
+
+    az.plot_mcse(
+        az_data, var_names=parameter_names, errorbar=True, n_points=10)
+    output_filepath = output_path / 'plot_mcse_errorbar.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_mcse(
+        az_data, var_names=parameter_names, extra_methods=True,
+        n_points=10)
+    output_filepath = output_path / 'plot_mcse_extra_methods.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    '''
+    # I haven't figured out how to calculate the MCSE statistics directly from
+    #   the 'draws_df'
+    
+    # STD / sqrt(N), but this doesn't exactly match any of the statistics from 
+    #   'az.mcse'
+    draws_df.alpha.std() / np.sqrt(len(draws_df))
+
+    # I thought MCSE by quantile could be calculated by using only the samples
+    #   in that quantile, but haven't been able to get that to work
+    var = 'beta[2]'
+    var = 'sigma'
+    q = 0.05
+    n = (draws_df[var] < draws_df[var].quantile(q=q)).sum()
+    m = draws_df.loc[draws_df[var] < draws_df[var].quantile(q=q)].loc[:, var].std()
+    m / np.sqrt(n)
+
+    draws_df['beta[1]'].quantile(q=0.05)
+    (draws_df['beta[2]'] < draws_df['beta[2]'].quantile(q=0.05)).sum()
+    '''
+
+
+    # plot pair
+    ##################################################
+
+    az.plot_pair(
+        az_data, var_names=parameter_names, kind='scatter',
+        divergences=True, show=show)
+    output_filepath = output_path / 'plot_pair_scatter.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_pair(
+        az_data, var_names=parameter_names, kind='kde',
+        divergences=True, show=show)
+    output_filepath = output_path / 'plot_pair_kde.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot parameters in parallel
+    ##################################################
+
+    az.plot_parallel(
+        az_data, var_names=parameter_names, colornd='blue', show=show)
+    output_filepath = output_path / 'plot_parallel.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot parameters in parallel
+    ##################################################
+
+    az.plot_posterior(
+        az_data, var_names=parameter_names, hdi_prob=0.9,
+        point_estimate='mean', show=show)
+    output_filepath = output_path / 'plot_posterior.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot predictive check
+    ##################################################
+
+    az.plot_ppc(
+        az_data, kind='kde', data_pairs={'y': 'predict_y_given_x'},
+        random_seed=483742, show=show)
+    output_filepath = output_path / 'plot_predictive_check_kde.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_ppc(
+        az_data, kind='cumulative', data_pairs={'y': 'predict_y_given_x'},
+        random_seed=483742, show=show)
+    output_filepath = output_path / 'plot_predictive_check_cumulative.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_ppc(
+        az_data, kind='scatter', data_pairs={'y': 'predict_y_given_x'},
+        random_seed=483742, jitter=0.5, show=show)
+    output_filepath = output_path / 'plot_predictive_check_scatter.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot chain rank order statistics
+    ##################################################
+    # each chain should show approximately a uniform distribution:
+    #   https://arxiv.org/pdf/1903.08008
+    #   Vehtari, Gelman, Simpson, Carpenter, Bürkner (2020)
+    #   Rank-normalization, folding, and localization: An improved R for
+    #       assessing convergence of MCMC
+
+    az.plot_rank(
+        az_data, var_names=parameter_names, kind='bars', show=show)
+    output_filepath = output_path / 'plot_rank_bars.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+    az.plot_rank(
+        az_data, var_names=parameter_names, kind='vlines', show=show)
+    output_filepath = output_path / 'plot_rank_vlines.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot traces
+    ##################################################
+
+    az.plot_trace(
+        az_data, var_names=parameter_names, legend=False, show=show)
+    output_filepath = output_path / 'plot_trace.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+    # plot distributions on violin plot
+    ##################################################
+
+    az.plot_violin(
+        az_data, var_names=parameter_names, rug=True,
+        hdi_prob=0.9, show=show)
+    output_filepath = output_path / 'plot_violin.png'
+    plt.savefig(output_filepath)
+    plt.close()
+
+
+
+
+
+
+
+
+
+
+    # miscellaneous notes
+    ##################################################
+
+    '''
+    fit_model.summary()
+    fit_model.summary().keys()
+    fit_model.stansummary()
+
+    fit_model.constrain_pars() # needs an argument
+    fit_model.constrained_param_names()
+    fit_model.data
+    fit_model.date
+
+    # gets ordered dictionary of 'iter' # values per parameter
+    fit_model.extract()
+
+    fit_model.flatnames
+    fit_model.get_adaptation_info()
+    fit_model.get_inits()
+    fit_model.get_inv_metric()
+    fit_model.get_last_position()
+
+    # 2 sequences (# chains?) of 300 each (iter #)
+    fit_model.get_logposterior()
+
+    # returns array shape 165, 2
+    # '2' might be # chains; 165 might be parameters
+    fit_model.get_posterior_mean()
+
+    # returns list of 2 ordered dicts, each of length 6
+    # returns list of 6 parameters for each chain:
+    #   accept_stat, stepsize, treedepth, n_leapfrog, divergent, energy
+    fit_model.get_sampler_params()[1].keys()
+
+    # both return the random seed
+    fit_model.get_seed()
+    fit_model.random_seed
+
+    fit_model.get_stancode()
+
+    # both get model object
+    fit_model.get_stanmodel()
+    fit_model.stanmodel
+
+    fit_model.get_stepsize()  # apparently 1 step size for each chain
+    fit_model.grad_log_prob()  # requires argument
+    fit_model.inits
+    fit_model.log_prob()   # requires argument
+    fit_model.mode  # returns single scalar
+    fit_model.model_name  # returns string
+    fit_model.model_pars  # returns list of names of parameters
+    fit_model.par_dims  # returns list of lists, each giving dims of parameters
+    fit_model.plot()
+    fit_model.sim   # ordered dictionary of parameters and permutations
+    fit_model.stan_args  # returns dict of all arguments
+
+    fit_model.to_dataframe()
+    fit_model.traceplot()
+    fit_model.unconstrain_pars() # requires argument
+    fit_model.unconstrained_param_names()
+
+
+
+    # visual style options
+    az.style.library.keys()
+
+    az.style.use('arviz-whitegrid')
+
+    az.plot_autocorr(fit_model) # plots each chain w/ itself & w/ other chains; check
+    az.plot_density(fit_model)
+    az.plot_energy(fit_model)
+    az.plot_ess(fit_model)
+    az.plot_forest(fit_model) # plots params for each chain; check
+    az.plot_hpd()
+    az.plot_kde(fit_model)
+    az.plot_mcse(fit_model)
+    az.plot_pair(fit_model) # scatterplot for each param combo
+    az.plot_parallel(fit_model) # plots params; check 'w/ & w/o divergences'
+    az.plot_posterior(fit_model)
+    az.plot_ppc(fit_model)
+    az.plot_rank(fit_model) # plots 'rank' of params by chain & iter
+    az.plot_trace(fit_model)
+    az.plot_kde(fit_model.extract()['beta'][:, 0],
+                fit_model.extract()['beta'][:, 1])
+    az.plot_dist(fit_model.extract()['beta'][:, 0],
+                 fit_model.extract()['beta'][:, 1])
+    az.plot_violin(fit_model)
+    plt.savefig('violin.png')
+    plt.close()
+
+
+    az.plot_compare(fit_model)
+    az.plot_elpd(fit_model)
+    az.plot_joint(fit_model) # reduce # variables to 2
+    az.plot_khat(fit_model)
+    az.plot_loo_pit(fit_model)
+
+    fit_model.extract().keys()
+    fit_model.extract()['beta'][:, 0]
+
+    az_data = az.from_pystan(
+        posterior=fit_model,
+        posterior_predictive='y_hat',
+        observed_data=['y'],
+        log_likelihood={'y': 'log_lik'},
+
+    )
+    '''
+
+
+
 def run_bernoulli_example():
     """
     Run the "Hello, World" basic example to ensure that CmdStanPy is working:
@@ -239,434 +662,20 @@ def main():
     ##################################################
 
     # https://python.arviz.org/en/latest/getting_started/Introduction.html
-    az_stan_data = az.from_cmdstanpy(
+    az_data = az.from_cmdstanpy(
         posterior=fit_model,
         #posterior_predictive=['predict_y_given_x', 'predicted_y_constant_x', 'predicted_y_density_x'],
         posterior_predictive='predict_y_given_x',
         #posterior_predictive='predicted_y_constant_x',
         #posterior_predictive='predicted_y_density_x',
-        observed_data={'y': stan_data['y']},
-    )
+        observed_data={'y': stan_data['y']})
 
 
     az.style.use('arviz-darkgrid')
     parameter_names = ['alpha', 'beta', 'sigma']
     show = False
 
-
-    # plot chain autocorrelation
-    ##################################################
-
-    az.plot_autocorr(az_stan_data, var_names=parameter_names, show=show)
-    output_filepath = output_path / 'plot_autocorr.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_autocorr(
-        az_stan_data, var_names=parameter_names, combined=True, show=show)
-    output_filepath = output_path / 'plot_autocorr_combined_chains.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot energy
-    ##################################################
-
-    az.plot_energy(az_stan_data, show=show)
-    output_filepath = output_path / 'plot_energy.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot parameter density
-    ##################################################
-
-    az.plot_density(
-        az_stan_data, var_names=parameter_names, outline=False, shade=0.7,
-        hdi_prob=0.9, point_estimate='mean', show=show)
-    output_filepath = output_path / 'plot_density.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot distribution
-    ##################################################
-
-    az.plot_dist(
-        draws_df[parameter_names[1]+'[1]'], rug=True,
-        quantiles=[0.25, 0.5, 0.75], show=show)
-    output_filepath = output_path / 'plot_distribution.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_dist(
-        draws_df[parameter_names[1]+'[1]'], rug=True, cumulative=True,
-        quantiles=[0.25, 0.5, 0.75], show=show)
-    output_filepath = output_path / 'plot_distribution_cumulative.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot ESS across local parts of distribution
-    ##################################################
-
-    az.plot_ess(
-        az_stan_data, var_names=parameter_names, kind='local', n_points=10,
-        rug=True, extra_methods=True, show=show)
-    output_filepath = output_path / 'plot_ess_local.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_ess(
-        az_stan_data, var_names=parameter_names, kind='quantile', n_points=10,
-        rug=True, extra_methods=True, show=show)
-    output_filepath = output_path / 'plot_ess_quantile.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_ess(
-        az_stan_data, var_names=parameter_names, kind='evolution', n_points=10,
-        rug=True, extra_methods=True, show=show)
-    output_filepath = output_path / 'plot_ess_evolution.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # forest plots
-    ##################################################
-
-    # look at model estimations of parameters, r-hat, and ess
-    az.plot_forest(
-        az_stan_data, kind='forestplot', var_names=parameter_names,
-        linewidth=6, markersize=8,
-        hdi_prob=0.9, r_hat=True, ess=True, show=show)
-    output_filepath = output_path / 'plot_forest.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    # look at model estimations of parameters, r-hat, and ess
-    az.plot_forest(
-        az_stan_data, kind='ridgeplot', var_names=parameter_names,
-        hdi_prob=0.9, r_hat=True, ess=True,
-        ridgeplot_alpha=0.5, ridgeplot_overlap=2, ridgeplot_kind='auto',
-        show=show)
-    output_filepath = output_path / 'plot_forest_ridge.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # HPD plot
-    ##################################################
-
-    # look at model estimations of parameters, r-hat, and ess
-    predicted_y_colnames = [e for e in draws_df.columns if 'y_given_x' in e]
-    predicted_y_df = draws_df[predicted_y_colnames]
-
-    # x_col_idx = 0
-    # plt.scatter(x.iloc[:, x_col_idx], y)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    # output_filepath = output_path / 'plot_hpd_x0.png'
-    # plt.savefig(output_filepath)
-
-    # plt.close()
-    # x_col_idx = 1
-    # plt.scatter(x.iloc[:, x_col_idx], y)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    # output_filepath = output_path / 'plot_hpd_x1.png'
-    # plt.savefig(output_filepath)
-    # plt.close()
-
-
-    # plot KDE
-    ##################################################
-
-    az.plot_kde(
-        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
-        contour=True, show=show)
-    output_filepath = output_path / 'plot_kde_contour.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_kde(
-        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
-        contour=False, show=show)
-    output_filepath = output_path / 'plot_kde_no_contour.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # MCSE statistics and plots
-    ##################################################
-
-    az.mcse(az_stan_data, var_names=parameter_names, method='mean')
-    az.mcse(az_stan_data, var_names=parameter_names, method='sd')
-    az.mcse(az_stan_data, var_names=parameter_names, method='quantile', prob=0.1)
-
-    az.plot_mcse(
-        az_stan_data, var_names=parameter_names, errorbar=True, n_points=10)
-    output_filepath = output_path / 'plot_mcse_errorbar.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_mcse(
-        az_stan_data, var_names=parameter_names, extra_methods=True,
-        n_points=10)
-    output_filepath = output_path / 'plot_mcse_extra_methods.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    '''
-    # I haven't figured out how to calculate the MCSE statistics directly from
-    #   the 'fit_df'
-    
-    # STD / sqrt(N), but this doesn't exactly match any of the statistics from 
-    #   'az.mcse'
-    fit_df.alpha.std() / np.sqrt(len(fit_df))
-
-    # I thought MCSE by quantile could be calculated by using only the samples
-    #   in that quantile, but haven't been able to get that to work
-    var = 'beta[2]'
-    var = 'sigma'
-    q = 0.05
-    n = (fit_df[var] < fit_df[var].quantile(q=q)).sum()
-    m = fit_df.loc[fit_df[var] < fit_df[var].quantile(q=q)].loc[:, var].std()
-    m / np.sqrt(n)
-
-    fit_df['beta[1]'].quantile(q=0.05)
-    (fit_df['beta[2]'] < fit_df['beta[2]'].quantile(q=0.05)).sum()
-    '''
-
-
-    # plot pair
-    ##################################################
-
-    az.plot_pair(
-        az_stan_data, var_names=parameter_names, kind='scatter',
-        divergences=True, show=show)
-    output_filepath = output_path / 'plot_pair_scatter.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_pair(
-        az_stan_data, var_names=parameter_names, kind='kde',
-        divergences=True, show=show)
-    output_filepath = output_path / 'plot_pair_kde.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot parameters in parallel
-    ##################################################
-
-    az.plot_parallel(
-        az_stan_data, var_names=parameter_names, colornd='blue', show=show)
-    output_filepath = output_path / 'plot_parallel.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot parameters in parallel
-    ##################################################
-
-    az.plot_posterior(
-        az_stan_data, var_names=parameter_names, hdi_prob=0.9,
-        point_estimate='mean', show=show)
-    output_filepath = output_path / 'plot_posterior.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot predictive check
-    ##################################################
-
-    az.plot_ppc(
-        az_stan_data, kind='kde', data_pairs={'y': 'predict_y_given_x'},
-        random_seed=483742, show=show)
-    output_filepath = output_path / 'plot_predictive_check_kde.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_ppc(
-        az_stan_data, kind='cumulative', data_pairs={'y': 'predict_y_given_x'},
-        random_seed=483742, show=show)
-    output_filepath = output_path / 'plot_predictive_check_cumulative.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_ppc(
-        az_stan_data, kind='scatter', data_pairs={'y': 'predict_y_given_x'},
-        random_seed=483742, jitter=0.5, show=show)
-    output_filepath = output_path / 'plot_predictive_check_scatter.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot chain rank order statistics
-    ##################################################
-    # each chain should show approximately a uniform distribution:
-    #   https://arxiv.org/pdf/1903.08008
-    #   Vehtari, Gelman, Simpson, Carpenter, Bürkner (2020)
-    #   Rank-normalization, folding, and localization: An improved R for
-    #       assessing convergence of MCMC
-
-    az.plot_rank(
-        az_stan_data, var_names=parameter_names, kind='bars', show=show)
-    output_filepath = output_path / 'plot_rank_bars.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-    az.plot_rank(
-        az_stan_data, var_names=parameter_names, kind='vlines', show=show)
-    output_filepath = output_path / 'plot_rank_vlines.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot traces
-    ##################################################
-
-    az.plot_trace(
-        az_stan_data, var_names=parameter_names, legend=False, show=show)
-    output_filepath = output_path / 'plot_trace.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-    # plot distributions on violin plot
-    ##################################################
-
-    az.plot_violin(
-        az_stan_data, var_names=parameter_names, rug=True,
-        hdi_prob=0.9, show=show)
-    output_filepath = output_path / 'plot_violin.png'
-    plt.savefig(output_filepath)
-    plt.close()
-
-
-
-
-
-
-
-
-
-
-    # miscellaneous notes
-    ##################################################
-
-    '''
-    fit_model.summary()
-    fit_model.summary().keys()
-    fit_model.stansummary()
-
-    fit_model.constrain_pars() # needs an argument
-    fit_model.constrained_param_names()
-    fit_model.data
-    fit_model.date
-
-    # gets ordered dictionary of 'iter' # values per parameter
-    fit_model.extract()
-
-    fit_model.flatnames
-    fit_model.get_adaptation_info()
-    fit_model.get_inits()
-    fit_model.get_inv_metric()
-    fit_model.get_last_position()
-
-    # 2 sequences (# chains?) of 300 each (iter #)
-    fit_model.get_logposterior()
-
-    # returns array shape 165, 2
-    # '2' might be # chains; 165 might be parameters
-    fit_model.get_posterior_mean()
-
-    # returns list of 2 ordered dicts, each of length 6
-    # returns list of 6 parameters for each chain:
-    #   accept_stat, stepsize, treedepth, n_leapfrog, divergent, energy
-    fit_model.get_sampler_params()[1].keys()
-
-    # both return the random seed
-    fit_model.get_seed()
-    fit_model.random_seed
-
-    fit_model.get_stancode()
-
-    # both get model object
-    fit_model.get_stanmodel()
-    fit_model.stanmodel
-
-    fit_model.get_stepsize()  # apparently 1 step size for each chain
-    fit_model.grad_log_prob()  # requires argument
-    fit_model.inits
-    fit_model.log_prob()   # requires argument
-    fit_model.mode  # returns single scalar
-    fit_model.model_name  # returns string
-    fit_model.model_pars  # returns list of names of parameters
-    fit_model.par_dims  # returns list of lists, each giving dims of parameters
-    fit_model.plot()
-    fit_model.sim   # ordered dictionary of parameters and permutations
-    fit_model.stan_args  # returns dict of all arguments
-
-    fit_model.to_dataframe()
-    fit_model.traceplot()
-    fit_model.unconstrain_pars() # requires argument
-    fit_model.unconstrained_param_names()
-
-
-
-    # visual style options
-    az.style.library.keys()
-
-    az.style.use('arviz-whitegrid')
-
-    az.plot_autocorr(fit_model) # plots each chain w/ itself & w/ other chains; check
-    az.plot_density(fit_model)
-    az.plot_energy(fit_model)
-    az.plot_ess(fit_model)
-    az.plot_forest(fit_model) # plots params for each chain; check
-    az.plot_hpd()
-    az.plot_kde(fit_model)
-    az.plot_mcse(fit_model)
-    az.plot_pair(fit_model) # scatterplot for each param combo
-    az.plot_parallel(fit_model) # plots params; check 'w/ & w/o divergences'
-    az.plot_posterior(fit_model)
-    az.plot_ppc(fit_model)
-    az.plot_rank(fit_model) # plots 'rank' of params by chain & iter
-    az.plot_trace(fit_model)
-    az.plot_kde(fit_model.extract()['beta'][:, 0],
-                fit_model.extract()['beta'][:, 1])
-    az.plot_dist(fit_model.extract()['beta'][:, 0],
-                 fit_model.extract()['beta'][:, 1])
-    az.plot_violin(fit_model)
-    plt.savefig('violin.png')
-    plt.close()
-
-
-    az.plot_compare(fit_model)
-    az.plot_elpd(fit_model)
-    az.plot_joint(fit_model) # reduce # variables to 2
-    az.plot_khat(fit_model)
-    az.plot_loo_pit(fit_model)
-
-    fit_model.extract().keys()
-    fit_model.extract()['beta'][:, 0]
-
-    az_data = az.from_pystan(
-        posterior=fit_model,
-        posterior_predictive='y_hat',
-        observed_data=['y'],
-        log_likelihood={'y': 'log_lik'},
-
-    )
-    '''
-
+    run_arviz_plots(az_data, draws_df, parameter_names, show, output_path)
 
 
 
@@ -676,5 +685,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # run_bernoulli_example()
+    run_bernoulli_example()
     main()
