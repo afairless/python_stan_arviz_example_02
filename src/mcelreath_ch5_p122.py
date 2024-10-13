@@ -144,18 +144,25 @@ def run_bernoulli_example():
 
 def main():
     """
+    Original example from:
+
+        Statistical Rethinking:  A Bayesian Course with Examples in R and Stan, 
+            2016, Richard McElreath, CRC Press, Taylor & Francis Group, Boca 
+            Raton, ISBN 978-1-4822-5344-3, chapter 5, page 122
     """
 
 
     ##################################################
-    # SET OUTPUT PATH
+    # SET PATHS
     ##################################################
-
-    output_path = Path.cwd() / 'output'
-    output_path.mkdir(exist_ok=True, parents=True)
 
     input_path = Path.cwd() / 'input'
     input_filepath = input_path / 'WaffleDivorce.csv'
+
+    src_path = Path.cwd() / 'src'
+
+    output_path = Path.cwd() / 'output'
+    output_path.mkdir(exist_ok=True, parents=True)
 
 
     ##################################################
@@ -185,67 +192,53 @@ def main():
 
     if use_new_x:
         stan_data = {
-            'N': n, 'K': k, 'x': x.to_json(), 'y': y.to_json(),
+            'N': n, 'K': k, 'x': x, 'y': y,
             'predict_y_constant_x_n': new_x_regular.shape[0],
-            'predict_y_constant_x': new_x_regular.to_json(),
+            'predict_y_constant_x': new_x_regular,
             'predict_y_density_x_n': new_x_density.shape[0],
-            'predict_y_density_x': new_x_density.to_json()}
+            'predict_y_density_x': new_x_density}
         stan_filename = 'ch5_p122_multiple_regression_w_new_xs.stan'
     else:
         stan_data = {'N': n, 'K': k, 'x': x, 'y': y}
         stan_filename = 'ch5_p122_multiple_regression_wo_new_xs.stan'
 
 
-    dir(stan)
-    dir(stan.model)
-    dir(stan.fit)
-    dir(stan.model.stan)
-    dir(stan.model.stan.common)
+    stan_filepath = src_path / stan_filename
+    model = CmdStanModel(stan_file=stan_filepath)
 
-    stan_filepath = Path.cwd() / 'src' / stan_filename
-    with open(stan_filepath) as f:
-        stan_code = f.read()
-    stan_model = stan.build(program_code=stan_code, data=stan_data)
+    # fit_model = model.sample(
+    #     data=stan_data, chains=2, thin=2, seed=22074,
+    #     iter_warmup=100, iter_sampling=200, output_dir=output_path)
+    fit_model = model.sample(
+        data=stan_data, chains=4, thin=2, seed=21520,
+        iter_warmup=1000, iter_sampling=2000, output_dir=output_path)
+    # fit_model = model.sample(
+    #     data=stan_data, chains=4, thin=1, seed=81398,
+    #     iter_warmup=1000, iter_sampling=2000, output_dir=output_path)
 
-    #fit_model = stan_model.sampling(
-    #    data=stan_data, iter=300, chains=2, warmup=150, thin=1, seed=22411517)
-    #fit_model = stan_model.sampling(
-    #    data=stan_data, iter=300, chains=4, warmup=150, thin=1, seed=22074)
-    #fit_model = stan_model.sampling(
-    #    data=stan_data, iter=2000, chains=4, warmup=1000, thin=1, seed=22074)
-    fit_model = stan_model.sampling(
-        data=stan_data, iter=2000, chains=4, warmup=1000, thin=2, seed=22074)
+    type(model)
+    dir(model)
+    dir(fit_model)
+    fit_model.stan_variables().keys()
 
 
     # tabular summaries
     ##################################################
 
-    print(fit_model)
     # parameter estimates are nearly identical to those in book, page 125
 
-    # all samples for all parameters, predicted values, and diagnostics
-    #   number of rows = number of 'iter' in 'StanModel.sampling' call
-    fit_df = fit_model.to_dataframe()
-
     # text summary of means, sd, se, and quantiles for parameters, n_eff, & Rhat
-    fit_stansummary = fit_model.stansummary()
-    output_filepath = output_path / 'summary_stansummary.txt'
-    write_list_to_text_file([fit_stansummary], output_filepath, True)
+    fit_df = fit_model.summary()
+    output_filepath = output_path / 'summary.txt'
+    fit_df.to_csv(output_filepath, index=True)
 
-    # same summary as for 'stansummary', but in matrix/dataframe form instead of text
-    fit_summary_df = pd.DataFrame(
-        fit_model.summary()['summary'],
-        index=fit_model.summary()['summary_rownames'],
-        columns=fit_model.summary()['summary_colnames'])
-    output_filepath = output_path / 'summary_summary.txt'
-    fit_summary_df.to_csv(output_filepath, index=True)
 
-    # same summary as for 'stansummary', but separated by chain
-    fit_summary_by_chain_df_list = [pd.DataFrame(
-        fit_model.summary()['c_summary'][:, :, i],
-        index=fit_model.summary()['c_summary_rownames'],
-        columns=fit_model.summary()['c_summary_colnames'])
-        for i in range(fit_model.summary()['c_summary'].shape[-1])]
+    # all samples for all parameters, predicted values, and diagnostics
+    #   number of rows = number of 'iter_sampling' in 'CmdStanModel.sample' call
+    draws_df = fit_model.draws_pd()
+    output_filepath = output_path / 'draws.txt'
+    draws_df.to_csv(output_filepath, index=True)
+
 
 
     # plot parameters
@@ -877,4 +870,5 @@ def main():
 
 
 if __name__ == '__main__':
+    run_bernoulli_example()
     main()
