@@ -383,7 +383,7 @@ def run_bernoulli_example():
     fit.summary().to_csv(output_filepath)
 
 
-def main():
+def run_and_plot_mcelreath_p122():
     """
     Original example from:
 
@@ -496,4 +496,4 @@ def main():
 
 if __name__ == '__main__':
     run_bernoulli_example()
-    main()
+    run_and_plot_mcelreath_p122()
