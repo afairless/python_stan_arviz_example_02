@@ -211,15 +211,10 @@ def main():
     #     iter_warmup=100, iter_sampling=200, output_dir=output_path)
     fit_model = model.sample(
         data=stan_data, chains=4, thin=2, seed=21520,
-        iter_warmup=1000, iter_sampling=2000, output_dir=output_path)
+        iter_warmup=4000, iter_sampling=8000, output_dir=output_path)
     # fit_model = model.sample(
     #     data=stan_data, chains=4, thin=1, seed=81398,
     #     iter_warmup=1000, iter_sampling=2000, output_dir=output_path)
-
-    type(model)
-    dir(model)
-    dir(fit_model)
-    fit_model.stan_variables().keys()
 
 
     # tabular summaries
@@ -229,34 +224,34 @@ def main():
 
     # text summary of means, sd, se, and quantiles for parameters, n_eff, & Rhat
     fit_df = fit_model.summary()
-    output_filepath = output_path / 'summary.txt'
+    output_filepath = output_path / 'summary.csv'
     fit_df.to_csv(output_filepath, index=True)
 
 
     # all samples for all parameters, predicted values, and diagnostics
     #   number of rows = number of 'iter_sampling' in 'CmdStanModel.sample' call
     draws_df = fit_model.draws_pd()
-    output_filepath = output_path / 'draws.txt'
+    output_filepath = output_path / 'draws.csv'
     draws_df.to_csv(output_filepath, index=True)
 
 
-
-    # plot parameters
+    # set plot parameters
     ##################################################
 
-    az_stan_data = az.from_pystan(
+    # https://python.arviz.org/en/latest/getting_started/Introduction.html
+    az_stan_data = az.from_cmdstanpy(
         posterior=fit_model,
         #posterior_predictive=['predict_y_given_x', 'predicted_y_constant_x', 'predicted_y_density_x'],
         posterior_predictive='predict_y_given_x',
         #posterior_predictive='predicted_y_constant_x',
         #posterior_predictive='predicted_y_density_x',
-        observed_data=['y']
+        observed_data={'y': stan_data['y']},
     )
 
 
     az.style.use('arviz-darkgrid')
     parameter_names = ['alpha', 'beta', 'sigma']
-    show = True
+    show = False
 
 
     # plot chain autocorrelation
@@ -288,7 +283,7 @@ def main():
 
     az.plot_density(
         az_stan_data, var_names=parameter_names, outline=False, shade=0.7,
-        credible_interval=0.9, point_estimate='mean', show=show)
+        hdi_prob=0.9, point_estimate='mean', show=show)
     output_filepath = output_path / 'plot_density.png'
     plt.savefig(output_filepath)
     plt.close()
@@ -298,14 +293,14 @@ def main():
     ##################################################
 
     az.plot_dist(
-        fit_df[parameter_names[1]+'[1]'], rug=True,
+        draws_df[parameter_names[1]+'[1]'], rug=True,
         quantiles=[0.25, 0.5, 0.75], show=show)
     output_filepath = output_path / 'plot_distribution.png'
     plt.savefig(output_filepath)
     plt.close()
 
     az.plot_dist(
-        fit_df[parameter_names[1]+'[1]'], rug=True, cumulative=True,
+        draws_df[parameter_names[1]+'[1]'], rug=True, cumulative=True,
         quantiles=[0.25, 0.5, 0.75], show=show)
     output_filepath = output_path / 'plot_distribution_cumulative.png'
     plt.savefig(output_filepath)
@@ -344,7 +339,7 @@ def main():
     az.plot_forest(
         az_stan_data, kind='forestplot', var_names=parameter_names,
         linewidth=6, markersize=8,
-        credible_interval=0.9, r_hat=True, ess=True, show=show)
+        hdi_prob=0.9, r_hat=True, ess=True, show=show)
     output_filepath = output_path / 'plot_forest.png'
     plt.savefig(output_filepath)
     plt.close()
@@ -352,7 +347,7 @@ def main():
     # look at model estimations of parameters, r-hat, and ess
     az.plot_forest(
         az_stan_data, kind='ridgeplot', var_names=parameter_names,
-        credible_interval=0.9, r_hat=True, ess=True,
+        hdi_prob=0.9, r_hat=True, ess=True,
         ridgeplot_alpha=0.5, ridgeplot_overlap=2, ridgeplot_kind='auto',
         show=show)
     output_filepath = output_path / 'plot_forest_ridge.png'
@@ -364,42 +359,42 @@ def main():
     ##################################################
 
     # look at model estimations of parameters, r-hat, and ess
-    predicted_y_colnames = [e for e in fit_df.columns if 'y_given_x' in e]
-    predicted_y_df = fit_df[predicted_y_colnames]
+    predicted_y_colnames = [e for e in draws_df.columns if 'y_given_x' in e]
+    predicted_y_df = draws_df[predicted_y_colnames]
 
-    x_col_idx = 0
-    plt.scatter(x.iloc[:, x_col_idx], y)
-    az.plot_hpd(
-        x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    az.plot_hpd(
-        x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    output_filepath = output_path / 'plot_hpd_x0.png'
-    plt.savefig(output_filepath)
+    # x_col_idx = 0
+    # plt.scatter(x.iloc[:, x_col_idx], y)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
+    # output_filepath = output_path / 'plot_hpd_x0.png'
+    # plt.savefig(output_filepath)
 
-    plt.close()
-    x_col_idx = 1
-    plt.scatter(x.iloc[:, x_col_idx], y)
-    az.plot_hpd(
-        x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    az.plot_hpd(
-        x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    output_filepath = output_path / 'plot_hpd_x1.png'
-    plt.savefig(output_filepath)
-    plt.close()
+    # plt.close()
+    # x_col_idx = 1
+    # plt.scatter(x.iloc[:, x_col_idx], y)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
+    # az.plot_hpd(
+    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
+    # output_filepath = output_path / 'plot_hpd_x1.png'
+    # plt.savefig(output_filepath)
+    # plt.close()
 
 
     # plot KDE
     ##################################################
 
     az.plot_kde(
-        fit_df[parameter_names[0]], fit_df[parameter_names[1]+'[1]'],
+        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
         contour=True, show=show)
     output_filepath = output_path / 'plot_kde_contour.png'
     plt.savefig(output_filepath)
     plt.close()
 
     az.plot_kde(
-        fit_df[parameter_names[0]], fit_df[parameter_names[1]+'[1]'],
+        draws_df[parameter_names[0]], draws_df[parameter_names[1]+'[1]'],
         contour=False, show=show)
     output_filepath = output_path / 'plot_kde_no_contour.png'
     plt.savefig(output_filepath)
@@ -481,7 +476,7 @@ def main():
     ##################################################
 
     az.plot_posterior(
-        az_stan_data, var_names=parameter_names, credible_interval=0.9,
+        az_stan_data, var_names=parameter_names, hdi_prob=0.9,
         point_estimate='mean', show=show)
     output_filepath = output_path / 'plot_posterior.png'
     plt.savefig(output_filepath)
@@ -549,7 +544,7 @@ def main():
 
     az.plot_violin(
         az_stan_data, var_names=parameter_names, rug=True,
-        credible_interval=0.9, show=show)
+        hdi_prob=0.9, show=show)
     output_filepath = output_path / 'plot_violin.png'
     plt.savefig(output_filepath)
     plt.close()
@@ -566,6 +561,7 @@ def main():
     # miscellaneous notes
     ##################################################
 
+    '''
     fit_model.summary()
     fit_model.summary().keys()
     fit_model.stansummary()
@@ -669,206 +665,16 @@ def main():
         log_likelihood={'y': 'log_lik'},
 
     )
-
-
-
-    ##################################################
-    #
-    ##################################################
-
-    # https://pystan.readthedocs.io/en/latest/index.html
-
-    import stan
-
-    schools_code = """
-    data {
-      int<lower=0> J;         // number of schools
-      array[J] real y;              // estimated treatment effects
-      array[J] real<lower=0> sigma; // standard error of effect estimates
-    }
-    parameters {
-      real mu;                // population treatment effect
-      real<lower=0> tau;      // standard deviation in treatment effects
-      vector[J] eta;          // unscaled deviation from mu by school
-    }
-    transformed parameters {
-      vector[J] theta = mu + tau * eta;        // school treatment effects
-    }
-    model {
-      target += normal_lpdf(eta | 0, 1);       // prior log-density
-      target += normal_lpdf(y | theta, sigma); // log-likelihood
-    }
-    """
-
-    schools_data = {
-        "J": 8,
-        "y": [28,  8, -3,  7, -1,  1, 18, 12],
-        "sigma": [15, 10, 16, 11,  9, 11, 10, 18]}
-
-    posterior = stan.build(schools_code, data=schools_data)
-    fit = posterior.sample(num_chains=4, num_samples=1000)
-    eta = fit["eta"]  # array with shape (8, 4000)
-    df = fit.to_frame()  # pandas `DataFrame, requires pandas
-
-
-    ##################################################
-    #
-    ##################################################
-
-    # https://arviz-devs.github.io/arviz/notebooks/InferenceDataCookbook.html
-
-    schools_code = """
-    data {
-        int<lower=0> J;
-        real y[J];
-        real<lower=0> sigma[J];
-    }
-
-    parameters {
-        real mu;
-        real<lower=0> tau;
-        real theta_tilde[J];
-    }
-
-    transformed parameters {
-        real theta[J];
-        for (j in 1:J)
-            theta[j] = mu + tau * theta_tilde[j];
-    }
-
-    model {
-        mu ~ normal(0, 5);
-        tau ~ cauchy(0, 5);
-        theta_tilde ~ normal(0, 1);
-        y ~ normal(theta, sigma);
-    }
-
-    generated quantities {
-        vector[J] log_lik;
-        vector[J] y_hat;
-        for (j in 1:J) {
-            log_lik[j] = normal_lpdf(y[j] | theta[j], sigma[j]);
-            y_hat[j] = normal_rng(theta[j], sigma[j]);
-        }
-    }
-    """
-
-    eight_school_data = {
-        'J': 8,
-        'y': np.array([28., 8., -3., 7., -1., 1., 18., 12.]),
-        'sigma': np.array([15., 10., 16., 11., 9., 11., 10., 18.])
-    }
-
-    stan_model = pystan.StanModel(model_code=schools_code)
-    fit_model = stan_model.sampling(data=eight_school_data, control={"adapt_delta" : 0.9})
-
-    az_stan_data = az.from_pystan(
-        posterior=fit_model,
-        posterior_predictive='y_hat',
-        observed_data=['y'],
-        log_likelihood={'y': 'log_lik'},
-        coords={'school': np.arange(eight_school_data['J'])},
-        dims={
-            'theta': ['school'],
-            'y': ['school'],
-            'log_lik': ['school'],
-            'y_hat': ['school'],
-            'theta_tilde': ['school']
-        }
-    )
-
-    az.plot_mcse(az_stan_data, var_names=['mu', 'tau'], extra_methods=True)
-    az.plot_mcse(az_stan_data, var_names=['theta', 'theta_tilde'])
-
-    az.plot_posterior(az_stan_data, var_names=['mu', 'tau'], credible_interval=0.9)
-    az.plot_posterior(az_stan_data, var_names=['theta'], credible_interval=0.9)
-    az.plot_posterior(az_stan_data, credible_interval=0.9, group='posterior_predictive')
-    az.plot_posterior(az_stan_data, credible_interval=0.9, group='posterior')
-
-    az.plot_ppc(az_stan_data, data_pairs={'y': 'y_hat'})
-    az.plot_ppc(az_stan_data, kind='cumulative', data_pairs={'y': 'y_hat'})
-    az.plot_ppc(az_stan_data, kind='scatter', data_pairs={'y': 'y_hat'})
-
-
-
-    ##################################################
-    #
-    ##################################################
-    """
-    np.random.seed(101)
-
-    stan_code = '''
-    data {
-        int<lower=0> N;
-        vector[N] x;
-        vector[N] y;
-    }
-    parameters {
-        real alpha;
-        real beta;
-        real <lower=0> sigma;
-    }
-    model {
-        y ~ normal(alpha + beta * x, sigma);
-    }
     '''
 
-    alpha = 4.0
-    beta = 0.5
-    sigma = 1.0
-
-    x = 10 * np.random.rand(100)
-    y = alpha + beta * x
-    y = np.random.normal(y, scale=sigma)
-
-    data = {'N': len(x), 'x': x, 'y': y}
-
-    stan_model = pystan.StanModel(model_code=stan_code)
-
-    fit_model = stan_model.sampling(
-        data=data, iter=1000, chains=4, warmup=500, thin=1, seed=101)
-
-    summary_dict = fit_model.summary()
-
-    summary_df = pd.DataFrame(
-        summary_dict['summary'],
-        columns=summary_dict['summary_colnames'],
-        index=summary_dict['summary_rownames'])
-
-    summary_c_df = pd.DataFrame(
-        summary_dict['c_summary'],
-        columns=summary_dict['c_summary_colnames'],
-        index=summary_dict['c_summary_rownames'])
-
-    summary_dict.keys()
-    print(fit_model)
-    dir(fit_model)
-
-    fit_model.to_dataframe().columns
-    fit_model.traceplot()
-
-    az.plot_density(fit_model)
-
-    az_data = az.from_pystan(
-        posterior=fit_model,
-        posterior_predictive='y_hat',
-        observed_data=['y'],
-        log_likelihood={'y': 'log_lik'},
-
-    )
 
 
 
-    alpha = fit_model['alpha']
-    beta = fit_model['beta']
-    sigma = fit_model['sigma']
-    lp = fit_model['lp__']
-    """
 
 
 
 
 
 if __name__ == '__main__':
-    run_bernoulli_example()
+    # run_bernoulli_example()
     main()
