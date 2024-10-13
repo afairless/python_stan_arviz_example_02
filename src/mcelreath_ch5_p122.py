@@ -1,27 +1,19 @@
 #! /usr/bin/env python3
 
-from pathlib import Path
 import numpy as np
 import pandas as pd
-import polars as pl
+
+from pathlib import Path
+from itertools import product as it_product
+
 from cmdstanpy import CmdStanModel
+
 import arviz as az
 import matplotlib.pyplot as plt
 
-try:
-    from common import (
-        read_text_file, 
-        write_list_to_text_file,
-        )
 
-except:
-    from src.common import (
-        read_text_file, 
-        write_list_to_text_file,
-        )
-
-
-def calculate_gaussian_kernel_density_bandwidth_silverman_rule(a_df):
+def calculate_gaussian_kernel_density_bandwidth_silverman_rule(
+    df: pd.DataFrame) -> pd.Series:
     """
     Calculate Gaussian kernel density bandwidth based on Silverman's rule from:
         Silverman, B. W. (1986).  Density Estimation for Statistics and Data
@@ -32,51 +24,48 @@ def calculate_gaussian_kernel_density_bandwidth_silverman_rule(a_df):
 
         https://en.wikipedia.org/wiki/Kernel_density_estimation
 
-    :param a_df: a Pandas DataFrame where the Gaussian kernel density will be
+    :param df: a Pandas DataFrame where the Gaussian kernel density will be
         calculated for each column
     :return: scalar float representing bandwidth
     """
 
-    from pandas import concat as pd_concat
-
     # find interquartile range and divide it by 1.34
-    iqr_div134 = (a_df.quantile(0.75) - a_df.quantile(0.25)) / 1.34
+    iqr_div134 = (df.quantile(0.75) - df.quantile(0.25)) / 1.34
 
     # choose minimum of 'iqr_div134' and standard deviation for each variable
-    a = pd_concat([iqr_div134, a_df.std()], axis=1).min(axis=1)
+    a = pd.concat([iqr_div134, df.std()], axis=1).min(axis=1)
 
-    h = 0.9 * a * len(a_df)**(-1/5)
+    h = 0.9 * a * len(df)**(-1/5)
 
     # check bandwidths/std on each variable
 
     return h
 
 
-def resample_variables_by_gaussian_kernel_density(a_df, sample_n):
+def resample_variables_by_gaussian_kernel_density(
+    df: pd.DataFrame, sample_n: int) -> pd.DataFrame:
     """
-    For each column in Pandas DataFrame 'a_df', calculates a new sample of that
+    For each column in Pandas DataFrame 'df', calculates a new sample of that
         variable based on Gaussian kernel density
 
-    :param a_df: a Pandas DataFrame with columns of numerical data
+    :param df: a Pandas DataFrame with columns of numerical data
     :param sample_n: the number of new samples to calculate for each column
     :return: a Pandas DataFrame with 'sample_n' rows and the same number of
-        columns as 'a_df'
+        columns as 'df'
     """
 
-    from numpy.random import normal as np_normal
-    from pandas import DataFrame as pd_df
+    bandwidths = calculate_gaussian_kernel_density_bandwidth_silverman_rule(df)
+    resample = df.sample(n=sample_n, replace=True)
+    density_resample = np.random.normal(
+        loc=resample, scale=bandwidths, size=(sample_n, df.shape[1]))
 
-    bandwidths = calculate_gaussian_kernel_density_bandwidth_silverman_rule(a_df)
-    re_sample = a_df.sample(n=sample_n, replace=True)
-    density_re_sample = np_normal(
-        loc=re_sample, scale=bandwidths, size=(sample_n, a_df.shape[1]))
+    density_resample = pd.DataFrame(density_resample, columns=df.columns)
 
-    density_re_sample = pd_df(density_re_sample, columns=a_df.columns)
-
-    return density_re_sample
+    return density_resample
 
 
-def create_grid_regular_intervals_two_variables(a_df, intervals_num):
+def create_grid_regular_intervals_two_variables(
+    df: pd.DataFrame, intervals_num: int) -> pd.DataFrame:
     """
     1) Accepts Pandas DataFrame where first two columns are numerical values
     2) Finds the range of each of these columns and divides each range into
@@ -85,26 +74,22 @@ def create_grid_regular_intervals_two_variables(a_df, intervals_num):
     3) Creates new DataFrame with two columns where the rows represent the
         Cartesian product of the equally spaced intervals
 
-    :param a_df: a Pandas DataFrame where first two columns are numerical values
+    :param df: a Pandas DataFrame where first two columns are numerical values
     :param intervals_num: scalar integer; the number of equally spaced intervals
         to create for each column
     :return:
     """
 
-    import pandas as pd
-    from numpy import linspace as np_linspace
-    from itertools import product as it_product
-
-    intervals_df = a_df.apply(lambda d: np_linspace(
-        start=d.min(), stop=d.max(), num=intervals_num))
+    intervals_df = df.apply(
+        lambda d: np.linspace(start=d.min(), stop=d.max(), num=intervals_num))
 
     # the following code works much like 'expand.grid' in R, but it handles only
     #   two variables
-    cartesian_product = list(it_product(intervals_df.iloc[:, 0],
-                                        intervals_df.iloc[:, 1]))
+    cartesian_product = list(
+        it_product(intervals_df.iloc[:, 0], intervals_df.iloc[:, 1]))
 
     product_df = pd.DataFrame.from_records(
-        cartesian_product, columns=a_df.columns)
+        cartesian_product, columns=df.columns)
 
     return product_df
 
@@ -115,6 +100,8 @@ def run_arviz_plots(
     """
     Save a series of plots of the Bayesian model using the ArviZ library
     """
+
+    az.style.use('arviz-darkgrid')
 
 
     # plot chain autocorrelation
@@ -218,34 +205,6 @@ def run_arviz_plots(
     plt.close()
 
 
-    # HPD plot
-    ##################################################
-
-    # look at model estimations of parameters, r-hat, and ess
-    predicted_y_colnames = [e for e in draws_df.columns if 'y_given_x' in e]
-    predicted_y_df = draws_df[predicted_y_colnames]
-
-    # x_col_idx = 0
-    # plt.scatter(x.iloc[:, x_col_idx], y)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    # output_filepath = output_path / 'plot_hpd_x0.png'
-    # plt.savefig(output_filepath)
-
-    # plt.close()
-    # x_col_idx = 1
-    # plt.scatter(x.iloc[:, x_col_idx], y)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.5, show=show)
-    # az.plot_hpd(
-    #     x.iloc[:, x_col_idx], predicted_y_df, credible_interval=0.9, show=show)
-    # output_filepath = output_path / 'plot_hpd_x1.png'
-    # plt.savefig(output_filepath)
-    # plt.close()
-
-
     # plot KDE
     ##################################################
 
@@ -283,28 +242,6 @@ def run_arviz_plots(
     output_filepath = output_path / 'plot_mcse_extra_methods.png'
     plt.savefig(output_filepath)
     plt.close()
-
-
-    '''
-    # I haven't figured out how to calculate the MCSE statistics directly from
-    #   the 'draws_df'
-    
-    # STD / sqrt(N), but this doesn't exactly match any of the statistics from 
-    #   'az.mcse'
-    draws_df.alpha.std() / np.sqrt(len(draws_df))
-
-    # I thought MCSE by quantile could be calculated by using only the samples
-    #   in that quantile, but haven't been able to get that to work
-    var = 'beta[2]'
-    var = 'sigma'
-    q = 0.05
-    n = (draws_df[var] < draws_df[var].quantile(q=q)).sum()
-    m = draws_df.loc[draws_df[var] < draws_df[var].quantile(q=q)].loc[:, var].std()
-    m / np.sqrt(n)
-
-    draws_df['beta[1]'].quantile(q=0.05)
-    (draws_df['beta[2]'] < draws_df['beta[2]'].quantile(q=0.05)).sum()
-    '''
 
 
     # plot pair
@@ -411,125 +348,6 @@ def run_arviz_plots(
     output_filepath = output_path / 'plot_violin.png'
     plt.savefig(output_filepath)
     plt.close()
-
-
-
-
-
-
-
-
-
-
-    # miscellaneous notes
-    ##################################################
-
-    '''
-    fit_model.summary()
-    fit_model.summary().keys()
-    fit_model.stansummary()
-
-    fit_model.constrain_pars() # needs an argument
-    fit_model.constrained_param_names()
-    fit_model.data
-    fit_model.date
-
-    # gets ordered dictionary of 'iter' # values per parameter
-    fit_model.extract()
-
-    fit_model.flatnames
-    fit_model.get_adaptation_info()
-    fit_model.get_inits()
-    fit_model.get_inv_metric()
-    fit_model.get_last_position()
-
-    # 2 sequences (# chains?) of 300 each (iter #)
-    fit_model.get_logposterior()
-
-    # returns array shape 165, 2
-    # '2' might be # chains; 165 might be parameters
-    fit_model.get_posterior_mean()
-
-    # returns list of 2 ordered dicts, each of length 6
-    # returns list of 6 parameters for each chain:
-    #   accept_stat, stepsize, treedepth, n_leapfrog, divergent, energy
-    fit_model.get_sampler_params()[1].keys()
-
-    # both return the random seed
-    fit_model.get_seed()
-    fit_model.random_seed
-
-    fit_model.get_stancode()
-
-    # both get model object
-    fit_model.get_stanmodel()
-    fit_model.stanmodel
-
-    fit_model.get_stepsize()  # apparently 1 step size for each chain
-    fit_model.grad_log_prob()  # requires argument
-    fit_model.inits
-    fit_model.log_prob()   # requires argument
-    fit_model.mode  # returns single scalar
-    fit_model.model_name  # returns string
-    fit_model.model_pars  # returns list of names of parameters
-    fit_model.par_dims  # returns list of lists, each giving dims of parameters
-    fit_model.plot()
-    fit_model.sim   # ordered dictionary of parameters and permutations
-    fit_model.stan_args  # returns dict of all arguments
-
-    fit_model.to_dataframe()
-    fit_model.traceplot()
-    fit_model.unconstrain_pars() # requires argument
-    fit_model.unconstrained_param_names()
-
-
-
-    # visual style options
-    az.style.library.keys()
-
-    az.style.use('arviz-whitegrid')
-
-    az.plot_autocorr(fit_model) # plots each chain w/ itself & w/ other chains; check
-    az.plot_density(fit_model)
-    az.plot_energy(fit_model)
-    az.plot_ess(fit_model)
-    az.plot_forest(fit_model) # plots params for each chain; check
-    az.plot_hpd()
-    az.plot_kde(fit_model)
-    az.plot_mcse(fit_model)
-    az.plot_pair(fit_model) # scatterplot for each param combo
-    az.plot_parallel(fit_model) # plots params; check 'w/ & w/o divergences'
-    az.plot_posterior(fit_model)
-    az.plot_ppc(fit_model)
-    az.plot_rank(fit_model) # plots 'rank' of params by chain & iter
-    az.plot_trace(fit_model)
-    az.plot_kde(fit_model.extract()['beta'][:, 0],
-                fit_model.extract()['beta'][:, 1])
-    az.plot_dist(fit_model.extract()['beta'][:, 0],
-                 fit_model.extract()['beta'][:, 1])
-    az.plot_violin(fit_model)
-    plt.savefig('violin.png')
-    plt.close()
-
-
-    az.plot_compare(fit_model)
-    az.plot_elpd(fit_model)
-    az.plot_joint(fit_model) # reduce # variables to 2
-    az.plot_khat(fit_model)
-    az.plot_loo_pit(fit_model)
-
-    fit_model.extract().keys()
-    fit_model.extract()['beta'][:, 0]
-
-    az_data = az.from_pystan(
-        posterior=fit_model,
-        posterior_predictive='y_hat',
-        observed_data=['y'],
-        log_likelihood={'y': 'log_lik'},
-
-    )
-    '''
-
 
 
 def run_bernoulli_example():
@@ -671,17 +489,9 @@ def main():
         observed_data={'y': stan_data['y']})
 
 
-    az.style.use('arviz-darkgrid')
-    parameter_names = ['alpha', 'beta', 'sigma']
     show = False
-
+    parameter_names = ['alpha', 'beta', 'sigma']
     run_arviz_plots(az_data, draws_df, parameter_names, show, output_path)
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
